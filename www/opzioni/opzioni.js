@@ -55,8 +55,8 @@ angular.module('GGVApp-opzioni',[])
                 $scope.opzioni = opzioni;
         }])
 
-.controller('GGVApp-OpzioniModalController', 
-            ['$http','$scope','opzioni',function ($http, $scope, opzioni) {
+.controller('GGVApp-OpzioniModalController',
+            ['$scope','opzioni',function ($scope, opzioni) {
 
                 $scope.opzioni = opzioni;
                 $scope.opzioni_modal = angular.copy($scope.opzioni);
@@ -92,18 +92,24 @@ angular.module('GGVApp-opzioni',[])
                 };
 
                 $scope.aggiornaStampanti = function(){
-                    $http.get('./stampanti')
-                    .success(function(data, status, headers, config){
-                        for(s in $scope.opzioni_modal.stampanti){
-                            var stampante = $scope.opzioni_modal.stampanti[s];
-                            if(stampante.tipo == 'rete'){
-                                data.push(stampante);   
-                            }
-                        }
-                        $scope.opzioni_modal.stampanti = data;
-                    })
-                    .error(function(data, status, headers, config){
-                        console.log('err! '+[data, status, headers, config]);
+                    if (!navigator.usb) {
+                        alert('WebUSB non è supportato da questo browser (usa Chrome o Edge)');
+                        return;
+                    }
+                    // Elenca i dispositivi USB già autorizzati in sessioni precedenti.
+                    // Al primo utilizzo la lista sarà vuota: il dispositivo viene
+                    // selezionato automaticamente al momento della prima stampa.
+                    navigator.usb.getDevices().then(function(devices) {
+                        var usb = devices.map(function(d) {
+                            return { nomeMenu: d.productName || 'USB', tipo: 'usb', nome: d.productName || 'usb' };
+                        });
+                        // Mantieni le stampanti di rete già configurate manualmente.
+                        var rete = $scope.opzioni_modal.stampanti.filter(function(s) {
+                            return s.tipo === 'rete';
+                        });
+                        $scope.$apply(function() {
+                            $scope.opzioni_modal.stampanti = usb.concat(rete);
+                        });
                     });
                 }
 

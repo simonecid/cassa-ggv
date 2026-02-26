@@ -2,7 +2,7 @@ angular.module('GGVApp-ordine')
 
 	.service(
 		'azioniOrdine',
-		['$rootScope', '$http', 'ordine', 'opzioni', function ($rootScope, $http, ordine, opzioni) {
+		['$rootScope', 'ordine', 'opzioni', function ($rootScope, ordine, opzioni) {
 
 
 				var onC = function(){console.log('old C');};
@@ -13,12 +13,12 @@ angular.module('GGVApp-ordine')
 				this.onReplicationErrors = function(f){
 					onE = function(){$rootScope.$apply(f);};
 				};
-				
+
 				var errori = false;
-				
+
 				//var db = new PouchDB('http://localhost:5984/ordini');
 				var db = new PouchDB('ordini');
-				
+
 				db.replicate.to(opzioni.getCouchDbSyncString() + '/ordini', {live: true})
 					.on('change', function (info) {
 						onC();
@@ -30,7 +30,7 @@ angular.module('GGVApp-ordine')
 						console.log('complete ');
 						console.log(info);
 					});
-					
+
 
 
 
@@ -49,23 +49,43 @@ angular.module('GGVApp-ordine')
 						alert("Tanni! L'ordine è vuoto");
 						return;
 					}
-					var r = {
-						'nomeRichiesta': 'stampa',
-						'stampante': opzioni.stampante,
-						"ordine": ordinePerStampa
-					};
-					//alert(opzioni.getPythonPrinterString());
-					$http.post(opzioni.getPythonPrinterString()+'/stampa', r)
-						.success(onSuccess)
-						.error(function (data, status, headers, config) {
-							if (status === 0) {
-								alert('Impossibile comunicare con il server di stampa');
-							}
-							else {
-								alert([data, status, headers, config]);
-							}
-							console.log([data, status, headers, config]);
-						});
+
+					var tipo = opzioni.stampante.tipo;
+					var nome = opzioni.stampante.nome || '';
+
+					function eseguiStampa(device) {
+						var richiesta = {
+							stampante: { tipo: tipo, nome: nome, device: device },
+							ordine: ordinePerStampa
+						};
+						printPos(richiesta)
+							.then(function () { $rootScope.$apply(onSuccess); })
+							.catch(function (e) {
+								$rootScope.$apply(function () { alert(e.message); });
+							});
+					}
+
+					if (tipo === 'usb') {
+						// Il device viene selezionato la prima volta che si stampa.
+						// Il click su "Stampa" è un gesto utente valido per requestDevice().
+						// Il dispositivo viene salvato su opzioni.stampante per le stampe successive.
+						var device = opzioni.stampante.device;
+						if (device) {
+							eseguiStampa(device);
+						} else {
+							selezionaStampanteUsb()
+								.then(function (dev) {
+									opzioni.stampante.device = dev;
+									eseguiStampa(dev);
+								})
+								.catch(function (e) {
+									alert('Impossibile selezionare la stampante USB: ' + e.message);
+								});
+						}
+					} else {
+						// device non e' usato per rete o file
+						eseguiStampa(null);
+					}
 				};
 
 				this.archivia = function (onSuccess) {

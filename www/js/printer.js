@@ -11,9 +11,9 @@
 // Tipo 'rete':
 //   I browser non possono aprire socket TCP raw, quindi NON è possibile
 //   connettersi direttamente alla stampante su porta 9100.
-//   È necessario avviare ws-bridge.js (o ws-bridge.py) sulla macchina host:
-//     node ws-bridge.js <ip-stampante>      →  ascolta su ws://localhost:9101
-//     python ws-bridge.py <ip-stampante>    →  ascolta su ws://localhost:9101
+//   È necessario avviare ws-printer-bridge.js (o ws-printer-bridge.py) sulla macchina host:
+//     node ws-printer-bridge.js <ip-stampante>      →  ascolta su ws://localhost:9101
+//     python ws-printer-bridge.py <ip-stampante>    →  ascolta su ws://localhost:9101
 //   In questo caso passa come nome: "ws://localhost:9101"
 // ---------------------------------------------------------------------------
 
@@ -110,6 +110,16 @@ function selezionaStampanteUsb() {
     return navigator.usb.requestDevice({ filters: [] });
 }
 
+// Funzione di test per scrivere il buffer di byte ESC/POS su file
+async function _printFile(filename, content) {
+    const handle = await window.showSaveFilePicker({                                                                                     
+        suggestedName: filename,                                                                                                         
+    });
+    const writable = await handle.createWritable();
+    await writable.write(content);
+    await writable.close();
+}
+
 // Invia un buffer di byte ESC/POS a una stampante USB già selezionata.
 // Il flusso WebUSB richiede: open → (selectConfiguration) → claimInterface → transferOut → release → close.
 function _printUsb(device, data) {
@@ -160,14 +170,14 @@ function _printUsb(device, data) {
 // Stampa di rete — WebSocket bridge
 // ---------------------------------------------------------------------------
 
-// Invia i byte ESC/POS al bridge WebSocket→TCP locale (ws-bridge.js / ws-bridge.py).
+// Invia i byte ESC/POS al bridge WebSocket→TCP locale (ws-printer-bridge.js / ws-printer-bridge.py).
 // Il bridge apre una connessione TCP verso la stampante su porta 9100 e vi inoltra i dati.
 // La connessione WebSocket viene chiusa subito dopo l'invio: ogni ticket è un job indipendente.
 function _printSocket(wsUrl, data) {
     return new Promise(function (resolve, reject) {
         var ws;
         try {
-            ws = new WebSocket(wsUrl);
+            ws = new WebSocket("ws://" + wsUrl);
             // binaryType = 'arraybuffer' assicura che i messaggi binari in ingresso
             // (non usati qui, ma buona pratica) arrivino come ArrayBuffer.
             ws.binaryType = 'arraybuffer';
@@ -194,14 +204,21 @@ function _printSocket(wsUrl, data) {
 // per evitare di sovraccaricare la stampante con trasferimenti sovrapposti.
 //
 // richiesta = {
-//   stampante: { tipo: 'usb', device: <USBDevice> }
-//             | { tipo: 'rete', nome: 'ws://localhost:9101' }
+//   stampante: { tipo: 'usb', nome: "usb 2", device: <USBDevice> }
+//             | { tipo: 'rete', nome: "rete 1", device: 'ws://localhost:9101' }
+//             | { tipo: 'file', nome: "un file", device: '/tmp/output' }
 //   ordine:   { voci: [...] }
 // }
 function printPos(richiesta) {
     var tipo  = richiesta.stampante.tipo;
     var nome  = richiesta.stampante.nome || '';
     var codes = toPosCodes(richiesta.ordine.voci);  // genera un Uint8Array per ogni ticket
+
+    if (tipo === 'file') {
+        return codes.reduce(function (p, pos) {
+            return p.then(function () { return _printFile(nome, pos); });
+        }, Promise.resolve());
+    }
 
     if (tipo === 'usb') {
         var device = richiesta.stampante.device;
@@ -245,6 +262,11 @@ function printPosPrenotazioni(richiesta) {
     var data = new TextEncoder().encode(
         '\n\n\x1d\x21\x12' + lines.join('\n---\n') + '\n\n\n\n\n\n\n\x1b\x6d'
     );
+
+    if (tipo === 'file') {
+        var percorso = richiesta.stampante.device;
+        return _printFile(percorso, data);
+    }
 
     if (tipo === 'usb') {
         var device = richiesta.stampante.device;

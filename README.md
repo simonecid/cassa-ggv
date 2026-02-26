@@ -20,7 +20,7 @@ Sistema di cassa per il festival. Ogni postazione (cassa) gira interamente nel b
 │  Chrome / Edge                      │
 │  └─ WebUSB  ──────────► stampante USB
 │                                     │
-│  ws-bridge  porta 9101  (opzionale) │
+│  ws-printer-bridge  porta 9101  (opzionale) │
 │  └─ TCP     ──────────► stampante di rete :9100
 └─────────────────────────────────────┘
 ```
@@ -86,31 +86,19 @@ Al primo utilizzo, clicca **"Seleziona stampante"** nell'app: il browser mostrer
 
 I browser non possono aprire socket TCP raw, quindi è necessario avviare il bridge WebSocket→TCP sulla macchina host.
 
-**Con Node.js:**
-
-```bash
-# Installa la dipendenza (una volta sola)
-cd serverpython
-npm install ws
-
-# Avvia il bridge
-node ws-bridge.js <ip-stampante>
-# Opzionale: node ws-bridge.js <ip-stampante> <porta-stampante> <porta-ws>
-# Default: porta-stampante=9100, porta-ws=9101
-```
-
-**Con Python:**
-
 ```bash
 # Installa la dipendenza (una volta sola)
 pip install websockets
 
 # Avvia il bridge
-python ws-bridge.py <ip-stampante>
-# Opzionale: python ws-bridge.py <ip-stampante> <porta-stampante> <porta-ws>
+python ws-printer-bridge.py <ip-stampante>
+# Opzionale: ws-printer-bridge.py [-h] [--printer_port porta_stampante]
+#                    [--ws_port websocket_port] [--debug true/false]
+#                    printer_ip
+# Default: ws_port: 9101 printer_port: 9100, debug: false
 ```
 
-Il bridge ascolta su `ws://localhost:9101` e inoltra i dati alla stampante.
+Il bridge ascolta su `ws://localhost:9101` di default e inoltra i dati alla stampante.
 
 Nel pannello **Opzioni** dell'app, imposta il nome della stampante di rete come:
 
@@ -140,8 +128,8 @@ cassa-ggv/
 ├── serverpython/
 │   ├── server.py          server HTTP statico (porta 8000)
 │   ├── printer.py         logica di stampa originale (Python, riferimento)
-│   ├── ws-bridge.js       bridge WebSocket→TCP per stampanti di rete (Node.js)
-│   └── ws-bridge.py       bridge WebSocket→TCP per stampanti di rete (Python)
+│   ├── ws-printer-bridge.js       bridge WebSocket→TCP per stampanti di rete (Node.js)
+│   └── ws-printer-bridge.py       bridge WebSocket→TCP per stampanti di rete (Python)
 └── www/
     ├── index.html         entry point AngularJS
     ├── js/
@@ -159,6 +147,5 @@ cassa-ggv/
 |---|---|
 | CouchDB | CouchDB ≥ 1.x |
 | server.py | Python 3 (stdlib) |
-| ws-bridge.js | Node.js + `npm install ws` |
-| ws-bridge.py | Python 3 + `pip install websockets` |
+| ws-printer-bridge.py | Python 3 + `pip install websockets` |
 | Browser | Chrome o Edge (per WebUSB) |

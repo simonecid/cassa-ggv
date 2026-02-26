@@ -8,11 +8,13 @@ var _opzioni = {
         
     ],
     "stampanti": [
-        {"nomeMenu" : "usb-2", "tipo": "usb", "nome":"/dev/usb/lp2"},
-        {"nomeMenu" : "usb-3", "tipo": "usb", "nome":"/dev/usb/lp3"},
-        {"nomeMenu" : "usb-4", "tipo": "usb", "nome":"/dev/usb/lp4"},
-        {"nomeMenu" : "rete-202", "tipo": "rete", "nome":"192.168.1.202"},
-        {"nomeMenu" : "rete-203", "tipo": "rete", "nome":"192.168.1.203"},
+        // USB: il dispositivo viene scelto dal browser al momento della prima stampa (WebUSB).
+        // Il campo "nome" è solo un'etichetta; non viene usato per la comunicazione.
+        {"nomeMenu" : "USB", "tipo": "usb", "nome": "usb"},
+        // Rete: "nome" è l'URL WebSocket del bridge locale (ws-printer-bridge.js / ws-printer-bridge.py).
+        // Avviare il bridge con: node ws-printer-bridge.js <ip-stampante>
+        {"nomeMenu" : "rete-202", "tipo": "rete", "nome": "ws://localhost:9101"},
+        {"nomeMenu" : "rete-203", "tipo": "rete", "nome": "ws://localhost:9101"},
     ]
 };
 
