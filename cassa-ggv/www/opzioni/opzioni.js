@@ -1,103 +1,111 @@
+// Modulo GGVApp-opzioni: gestisce la configurazione per-postazione.
+// I valori sono persistiti in localStorage; al primo avvio vengono usati
+// i default definiti in db/opzioni.js (_opzioni).
 angular.module('GGVApp-opzioni',[])
 
 .service('opzioni',function(){
-    // TODO attenzione: ora sembra non andare perchè nel modal stampo 
+    // TODO attenzione: ora sembra non andare perchè nel modal stampo
     // l'oggetto _opzioni_elenco che è statico e non varia in base a ordine in localstorage!
+
+    // Carica le opzioni salvate; se non ci sono usa i default da db/opzioni.js
     var opzioni = JSON.parse(
         window.localStorage.getItem(
             'opzioni',
             JSON.stringify(_opzioni))
     );
 
+    // Ripristina la stampante selezionata nell'ultima sessione cercandola per nome e tipo
     var stampanteLocal = window.localStorage.getItem('stampante');
     var stampanteTmp = stampanteLocal != null
     ? JSON.parse(stampanteLocal)
     : null; // TODO valutare
 
-    //console.log(stampanteTmp);
-    if(stampanteTmp !== null) { 
+    if(stampanteTmp !== null) {
         for(var s_idx in opzioni.stampanti){
             var s = opzioni.stampanti[s_idx];
             if(s.nome === stampanteTmp.nome && s.tipo === stampanteTmp.tipo){
                 opzioni.stampante = opzioni.stampanti[s_idx];
             }
-        } 
+        }
     }
 
-    opzioni.watch('stampante',function(id,vecchio,nuovo){ 
+    // Ogni volta che viene selezionata una stampante, la persiste in localStorage
+    opzioni.watch('stampante',function(id,vecchio,nuovo){
         window.localStorage.setItem('stampante',JSON.stringify(nuovo));
         return nuovo;
     });
-	
-	
+
+
+    // Restituisce l'URL base del server CouchDB (es. "http://192.168.1.1:5984")
 	opzioni.getCouchDbSyncString = function(){
 		return 'http://' + opzioni.server[2].valore + ':' + opzioni.server[3].valore;
  	};
-	
+
+    // Restituisce l'URL base del server di stampa Python (es. "http://192.168.1.1:8000")
 	opzioni.getPythonPrinterString = function(){
 		return 'http://' + opzioni.server[0].valore + ':' + opzioni.server[1].valore;
  	};
-	
+
+    // Cerca un'opzione server per nome (es. "default-doppio-schermo")
 	opzioni.getServer = function(nome){
 		for(voce in opzioni.server){
-			if(opzioni.server[voce].nome === nome) 
+			if(opzioni.server[voce].nome === nome)
 				return opzioni.server[voce];
 		}
 		return null;
 	};
-	
+
     return opzioni;
 })
 
 
-.controller( 'GGVApp-OpzioniController',  
+// Controller per la visualizzazione semplice delle opzioni (sola lettura)
+.controller( 'GGVApp-OpzioniController',
             ['$scope','opzioni',function ($scope,opzioni){
                 $scope.opzioni = opzioni;
         }])
 
-.controller('GGVApp-OpzioniModalController', 
+// Controller del modale di configurazione opzioni.
+// Lavora su una copia (opzioni_modal) per permettere di annullare le modifiche.
+.controller('GGVApp-OpzioniModalController',
             ['$http','$scope','opzioni',function ($http, $scope, opzioni) {
 
                 $scope.opzioni = opzioni;
                 $scope.opzioni_modal = angular.copy($scope.opzioni);
 
                 $scope.ok = function () {
-                    /*
-        for(var opzione_idx in $scope.opzioni_elenco){
-            $scope.opzioni[$scope.opzioni_elenco[opzione_idx].nome] = 
-                $scope.opzioni_elenco[opzione_idx].valore;
-        }
-        */
-               //     $scope.opzioni = angular.copy($scope.opzioni_modal);
-                    // TODO mantenere riferimento come in stampanti 
-                    // in questo caso si riassegna a server le coppie chiavi valore aggiornate
+                    // Copia i valori server dalla copia modale all'oggetto opzioni reale
                     $scope.opzioni.server = angular.copy($scope.opzioni_modal.server);
-                    
-                    // trick per copiare array mantenendo riferimenti (svuoto e riempio)
+
+                    // Aggiorna l'array stampanti mantenendo il riferimento originale
+                    // (svuota e riempi invece di riassegnare, per preservare i watch)
                     while($scope.opzioni.stampanti.length > 0){
                         $scope.opzioni.stampanti.pop();
                     }
                     for(s in $scope.opzioni_modal.stampanti){
                         $scope.opzioni.stampanti.push($scope.opzioni_modal.stampanti[s]);
                     }
-                    
-             //       opzioni.opzioni = $scope.opzioni;
+
+                    // Persiste le opzioni aggiornate
                     console.log($scope.opzioni);
                     window.localStorage.setItem('opzioni',JSON.stringify($scope.opzioni));
                 };
 
+                // Annulla: ripristina la copia modale dai valori correnti
                 $scope.cancel = function () {
                     $scope.opzioni_modal = angular.copy($scope.opzioni);
                     console.log($scope.opzioni);
                 };
 
+                // Interroga il server Python per ottenere le stampanti USB collegate,
+                // mantiene quelle di rete già configurate
                 $scope.aggiornaStampanti = function(){
                     $http.get('./stampanti')
                     .success(function(data, status, headers, config){
                         for(s in $scope.opzioni_modal.stampanti){
                             var stampante = $scope.opzioni_modal.stampanti[s];
                             if(stampante.tipo == 'rete'){
-                                data.push(stampante);   
+                                data.push(stampante);
                             }
                         }
                         $scope.opzioni_modal.stampanti = data;
@@ -117,6 +125,7 @@ angular.module('GGVApp-opzioni',[])
                     $scope.opzioni_modal.stampanti.splice(index , 1);
                 }
 
+                // Ripristina i valori di fabbrica definiti in db/opzioni.js
 				$scope.resetOpzioni = function(){
 					$scope.opzioni_modal = angular.copy(_opzioni);
 				}
@@ -129,7 +138,7 @@ angular.module('GGVApp-opzioni',[])
         restrict : 'E',
         controller : 'GGVApp-OpzioniModalController',
         templateUrl : 'opzioni/opzioni.html'
-    };    
+    };
 })
 
 ;

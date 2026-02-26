@@ -1,10 +1,21 @@
+// Catalogo prodotti del festival GGV.
+// Questo file viene caricato prima di AngularJS e sovrascrive sempre localStorage,
+// quindi modificare qui è sufficiente per aggiornare il menu su tutte le postazioni
+// al prossimo ricaricamento della pagina.
+//
+// Struttura di ogni voce:
+//   nome        : testo mostrato in cassa e sul ticket
+//   gruppo      : chiave della sezione (usata come classe CSS e raggruppamento schermo)
+//   prezzo      : prezzo unitario in euro
+//   stampa      : (opzionale) false = la voce non viene stampata sul ticket ESC/POS
+//                 (es. contorni inclusi nel prezzo di un altro piatto)
 var _menu = {
 
 	bar: [
 		{
 			nome:"Gadget",
 			gruppo:"bar",
-			prezzo:2		
+			prezzo:2
 		},
 		{
 			nome:"Maglietta GGV",
@@ -208,13 +219,13 @@ var _menu = {
 			nome: "Peperoni grigliati",
 			gruppo: "secondi",
 			prezzo: 0,
-			stampa: false
+			stampa: false   // contorno incluso: non genera un ticket separato
 		},
 		{
 			nome: "Cipolle grigliate",
 			gruppo: "secondi",
 			prezzo: 0,
-			stampa: false
+			stampa: false   // contorno incluso: non genera un ticket separato
 		},
 		/*{
 			nome: "Zucchine grigliate",
@@ -255,4 +266,5 @@ var _menu = {
 	]
 };
 
+// Sovrascrive sempre localStorage con il menu aggiornato da questo file
 localStorage.setItem('menu', JSON.stringify(_menu));

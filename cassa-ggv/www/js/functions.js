@@ -1,8 +1,11 @@
+// Polyfill per Object.values (non disponibile in browser vecchi)
 Object.values = function(obj) { return Object.keys(obj).map(function(key) { return obj[key]; }); } ;
 
+// Appiattisce un array di array di un solo livello: [[a,b],[c]] → [a,b,c]
 oneLevelFlatten = function(list) { return [].concat.apply([],list); } ;
 
 
+// Restituisce true se l'oggetto non ha proprietà proprie
 function isEmpty(map) {
     for (var key in map) {
         if (map.hasOwnProperty(key)) {
@@ -12,19 +15,24 @@ function isEmpty(map) {
     return true;
 }
 
+// Polyfill per Object.prototype.watch.
+// Permette di eseguire un callback ogni volta che una proprietà viene modificata.
+// Usato in opzioni.js per sincronizzare la stampante selezionata con localStorage.
 if (!Object.prototype.watch) {
     Object.defineProperty(Object.prototype, "watch", {
-        enumerable: false, 
-        configurable: true, 
-        writable: false, 
+        enumerable: false,
+        configurable: true,
+        writable: false,
         value: function (prop, handler) {
-            var oldval = this[prop], 
-                newval = oldval, 
+            var oldval = this[prop],
+                newval = oldval,
                 getter = function () {
                     return newval;
-                }, 
+                },
                 setter = function (val) {
                     oldval = newval;
+                    // Il handler riceve (nomeProp, vecchioValore, nuovoValore)
+                    // e il valore restituito diventa il nuovo valore della proprietà
                     return newval = handler.call(this, prop, oldval, val);
                 };
             if (delete this[prop]) { // can't watch constants
@@ -39,12 +47,12 @@ if (!Object.prototype.watch) {
     });
 }
 
-// object.unwatch
+// Polyfill per Object.prototype.unwatch: rimuove il getter/setter installato da watch
 if (!Object.prototype.unwatch) {
     Object.defineProperty(Object.prototype, "unwatch", {
-        enumerable: false, 
-        configurable: true, 
-        writable: false, 
+        enumerable: false,
+        configurable: true,
+        writable: false,
         value: function (prop) {
             var val = this[prop];
             delete this[prop]; // remove accessors
@@ -66,6 +74,10 @@ Object.clone = function(obj) {
     return copy;
 }
 */
+
+// Copia profonda di un oggetto arbitrario (gestisce Array, Date, RegExp, DOM node,
+// oggetti generici). Usata in ordine.js per clonare le voci prima della stampa,
+// così le modifiche (es. aggiunta nota "Asporto") non alterano l'ordine originale.
 function clone(src) {
 	function mixin(dest, source, copyFunc) {
 		var name, s, i, empty = {};
