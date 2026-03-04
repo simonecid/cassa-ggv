@@ -91,29 +91,7 @@ angular.module('GGVApp-opzioni',[])
                     console.log($scope.opzioni);
                 };
 
-                $scope.aggiornaStampanti = function(){
-                    if (!navigator.usb) {
-                        alert('WebUSB non è supportato da questo browser (usa Chrome o Edge)');
-                        return;
-                    }
-                    // Elenca i dispositivi USB già autorizzati in sessioni precedenti.
-                    // Al primo utilizzo la lista sarà vuota: il dispositivo viene
-                    // selezionato automaticamente al momento della prima stampa.
-                    navigator.usb.getDevices().then(function(devices) {
-                        var usb = devices.map(function(d) {
-                            return { nomeMenu: d.productName || 'USB', tipo: 'usb', nome: d.productName || 'usb' };
-                        });
-                        // Mantieni le stampanti di rete già configurate manualmente.
-                        var rete = $scope.opzioni_modal.stampanti.filter(function(s) {
-                            return s.tipo === 'rete';
-                        });
-                        $scope.$apply(function() {
-                            $scope.opzioni_modal.stampanti = usb.concat(rete);
-                        });
-                    });
-                }
-
-                $scope.nuovaStampante = {'nomeMenu':'', 'nome':'', 'tipo':''}
+                $scope.nuovaStampante = {'nomeMenu':'', 'nome':'', 'tipo':'rete'}
                 $scope.inserisciNuovaStampante = function(){
                     $scope.opzioni_modal.stampanti.push($scope.nuovaStampante);
                     $scope.nuovaStampante = {'nomeMenu':'', 'nome':'', 'tipo':''}

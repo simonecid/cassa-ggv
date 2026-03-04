@@ -44,20 +44,13 @@
                             Nuova:
                             <input placeholder="nome menu" type="text" ng-model="nuovaStampante.nomeMenu" />
                             <select ng-model="nuovaStampante.tipo">
-                                        <option value="usb">USB</option>
-                                        <option value="rete">Rete</option>
+                                        <option value="rete">Rete/USB (WebSocket bridge)</option>
                                         <option value="file">File locale (solo per test)</option>
                             </select>
 
-                            <input placeholder="nome-indirizzo" type="text" ng-model="nuovaStampante.nome" />
+                            <input placeholder="localhost:9101" type="text" ng-model="nuovaStampante.nome" />
                             <button type="button" class="btn btn-default" ng-click="inserisciNuovaStampante()">
                                 Aggiungi
-                            </button>
-                            
-                            <hr />
-                                    
-                            <button type="button" class="btn btn-default" ng-click="aggiornaStampanti()">
-                                Aggiorna Stampanti
                             </button>
                         </div>
                     </div>

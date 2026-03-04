@@ -1,20 +1,14 @@
 'use strict';
 
 // ---------------------------------------------------------------------------
-// printer.js — stampa ESC/POS dal browser
+// printer.js — stampa ESC/POS dal browser via WebSocket bridge
 //
-// Tipo 'usb':
-//   Usa la WebUSB API (Chrome/Edge su HTTPS o localhost).
-//   Prima di stampare, chiama selezionaStampanteUsb() su un gesto utente
-//   (click) e salva il dispositivo restituito in richiesta.stampante.device.
+// Tutte le stampanti comunicano tramite printer-bridge.py sulla macchina host:
+//   stampante di rete: python printer-bridge.py --printer_host <ip-stampante>
+//   stampante USB:     python ws-printer-bridge.py --usb /dev/usb/lp0
+// Il bridge ascolta su ws://127.0.0.1:9101 (porta configurabile con --ws_port).
 //
-// Tipo 'rete':
-//   I browser non possono aprire socket TCP raw, quindi NON è possibile
-//   connettersi direttamente alla stampante su porta 9100.
-//   È necessario avviare ws-printer-bridge.js (o ws-printer-bridge.py) sulla macchina host:
-//     node ws-printer-bridge.js <ip-stampante>      →  ascolta su ws://localhost:9101
-//     python ws-printer-bridge.py <ip-stampante>    →  ascolta su ws://localhost:9101
-//   In questo caso passa come nome: "ws://localhost:9101"
+// In opzioni passare come nome stampante l'URL WebSocket, es: "127.0.0.1:9101"
 // ---------------------------------------------------------------------------
 
 // Errore di stampa con informazioni sul dispositivo che ha fallito.
@@ -96,78 +90,21 @@ function toPosCodes(voci) {
 }
 
 // ---------------------------------------------------------------------------
-// Stampa USB — WebUSB API
+// Stampa su file — solo per debug
 // ---------------------------------------------------------------------------
-
-// Apre il dialogo del browser per scegliere un dispositivo USB.
-// DEVE essere chiamata da un gestore di evento utente (es. click),
-// altrimenti il browser blocca la richiesta per motivi di sicurezza.
-// Restituisce una Promise<USBDevice> da conservare e passare in richiesta.stampante.device.
-function selezionaStampanteUsb() {
-    if (!navigator.usb)
-        return Promise.reject(new Error('WebUSB non è supportato da questo browser'));
-    // filters: [] mostra tutti i dispositivi USB; si può filtrare per vendorId se noto.
-    return navigator.usb.requestDevice({ filters: [] });
-}
 
 // Funzione di test per scrivere il buffer di byte ESC/POS su file
 async function _printFile(filename, content) {
-    const handle = await window.showSaveFilePicker({                                                                                     
-        suggestedName: filename,                                                                                                         
+    const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
     });
     const writable = await handle.createWritable();
     await writable.write(content);
     await writable.close();
 }
 
-// Invia un buffer di byte ESC/POS a una stampante USB già selezionata.
-// Il flusso WebUSB richiede: open → (selectConfiguration) → claimInterface → transferOut → release → close.
-function _printUsb(device, data) {
-    var interfaceNum = null;  // numero di interfaccia USB da usare
-    var endpointNum  = null;  // numero dell'endpoint bulk OUT su cui scrivere
-
-    return device.open()
-        .then(function () {
-            // Seleziona la configurazione 1 solo se il dispositivo non ha già una configurazione attiva.
-            if (device.configuration === null) return device.selectConfiguration(1);
-        })
-        .then(function () {
-            // Scorre tutte le interfacce e gli endpoint per trovare il bulk OUT.
-            // Le stampanti ESC/POS espongono sempre almeno un endpoint bulk OUT per ricevere i dati.
-            device.configuration.interfaces.forEach(function (iface) {
-                iface.alternates.forEach(function (alt) {
-                    alt.endpoints.forEach(function (ep) {
-                        if (ep.direction === 'out' && ep.type === 'bulk') {
-                            interfaceNum = iface.interfaceNumber;
-                            endpointNum  = ep.endpointNumber;
-                        }
-                    });
-                });
-            });
-            if (interfaceNum === null)
-                throw new PrintError(
-                    device.productName || 'USB',
-                    'Nessun endpoint bulk OUT trovato sulla stampante'
-                );
-            // "Claim" dell'interfaccia: necessario prima di poter scrivere.
-            return device.claimInterface(interfaceNum);
-        })
-        .then(function () {
-            // Trasferisce i byte ESC/POS verso la stampante.
-            return device.transferOut(endpointNum, data);
-        })
-        .then(function () { return device.releaseInterface(interfaceNum); })
-        .then(function () { return device.close(); })
-        .catch(function (e) {
-            // Assicura che il dispositivo venga chiuso anche in caso di errore.
-            device.close().catch(function () {});
-            if (e instanceof PrintError) throw e;
-            throw new PrintError(device.productName || 'USB', e.message);
-        });
-}
-
 // ---------------------------------------------------------------------------
-// Stampa di rete — WebSocket bridge
+// Stampa via WebSocket bridge
 // ---------------------------------------------------------------------------
 
 // Invia i byte ESC/POS al bridge WebSocket→TCP locale (ws-printer-bridge.js / ws-printer-bridge.py).
@@ -204,9 +141,8 @@ function _printSocket(wsUrl, data) {
 // per evitare di sovraccaricare la stampante con trasferimenti sovrapposti.
 //
 // richiesta = {
-//   stampante: { tipo: 'usb', nome: "usb 2", device: <USBDevice> }
-//             | { tipo: 'rete', nome: "rete 1", device: 'ws://localhost:9101' }
-//             | { tipo: 'file', nome: "un file", device: '/tmp/output' }
+//   stampante: { tipo: 'rete', nome: "localhost:9101" }
+//             | { tipo: 'file', nome: "nome-file" }   ← solo per debug
 //   ordine:   { voci: [...] }
 // }
 function printPos(richiesta) {
@@ -217,18 +153,6 @@ function printPos(richiesta) {
     if (tipo === 'file') {
         return codes.reduce(function (p, pos) {
             return p.then(function () { return _printFile(nome, pos); });
-        }, Promise.resolve());
-    }
-
-    if (tipo === 'usb') {
-        var device = richiesta.stampante.device;
-        if (!device)
-            return Promise.reject(new PrintError(
-                nome, 'Nessun dispositivo USB. Chiama selezionaStampanteUsb() prima.'
-            ));
-        // reduce incatena le Promise in serie: aspetta la fine di ogni ticket prima del prossimo.
-        return codes.reduce(function (p, pos) {
-            return p.then(function () { return _printUsb(device, pos); });
         }, Promise.resolve());
     }
 
@@ -245,8 +169,8 @@ function printPos(richiesta) {
 // Le righe sono separate da "---" e il tutto viene tagliato alla fine.
 //
 // richiesta = {
-//   stampante: { tipo: 'usb', device: <USBDevice> }
-//             | { tipo: 'rete', nome: 'ws://localhost:9101' }
+//   stampante: { tipo: 'rete', nome: 'localhost:9101' }
+//             | { tipo: 'file', nome: "nome-file" }   ← solo per debug
 //   prenotazioni: [{ qta, nome, note }, ...]
 // }
 function printPosPrenotazioni(richiesta) {
@@ -263,17 +187,7 @@ function printPosPrenotazioni(richiesta) {
         '\n\n\x1d\x21\x12' + lines.join('\n---\n') + '\n\n\n\n\n\n\n\x1b\x6d'
     );
 
-    if (tipo === 'file') {
-        var percorso = richiesta.stampante.device;
-        return _printFile(percorso, data);
-    }
-
-    if (tipo === 'usb') {
-        var device = richiesta.stampante.device;
-        if (!device)
-            return Promise.reject(new PrintError(nome, 'Nessun dispositivo USB.'));
-        return _printUsb(device, data);
-    }
+    if (tipo === 'file') return _printFile(nome, data);
 
     if (tipo === 'rete') return _printSocket(nome, data);
 
