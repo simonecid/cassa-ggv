@@ -144,7 +144,7 @@ if __name__ == '__main__':
         parser.error('specificare o --printer_host IP_STAMPANTE per la rete oppure --usb DEVICE per USB')
         
     if args.usb and args.printer_host:
-    parser.error('specificare o --printer_host IP_STAMPANTE per la rete oppure --usb DEVICE per USB')
+        parser.error('specificare o --printer_host IP_STAMPANTE per la rete oppure --usb DEVICE per USB')
 
     try:
         asyncio.run(main(args))
